@@ -30,6 +30,8 @@ package ch.idsia.agents.controllers;
 import ch.idsia.agents.Agent;
 import ch.idsia.benchmark.mario.engine.sprites.Mario;
 import ch.idsia.benchmark.mario.environments.Environment;
+import ch.idsia.benchmark.mario.engine.sprites.Sprite;
+import ch.idsia.benchmark.mario.engine.GeneralizerLevelScene;
 
 /**
  * Created by IntelliJ IDEA.
@@ -42,6 +44,8 @@ public class OwnAgent extends BasicMarioAIAgent implements Agent
 {
 int trueJumpCounter = 0;
 int trueSpeedCounter = 0;
+boolean shouldJumpOntoHall = false;
+boolean isJumping = false;
 
 public OwnAgent()
 {
@@ -51,11 +55,74 @@ public OwnAgent()
 
 public void reset()
 {
-    action = new boolean[Environment.numberOfKeys];
+	action = new boolean[Environment.numberOfKeys];
+	action[Mario.KEY_RIGHT] = true;
+}
+
+public boolean isObstacle(int r, int c){
+	return getReceptiveFieldCellValue(r, c)==GeneralizerLevelScene.BRICK
+			|| getReceptiveFieldCellValue(r, c)==GeneralizerLevelScene.BORDER_CANNOT_PASS_THROUGH
+			|| getReceptiveFieldCellValue(r, c)==GeneralizerLevelScene.FLOWER_POT_OR_CANNON
+			|| getReceptiveFieldCellValue(r, c)==GeneralizerLevelScene.LADDER;
+}
+
+private boolean isOverHall(int r, int c) {
+	for (int  i = 1; i <= 9; i++) {
+		if (isObstacle(r + i, c)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+private boolean shouldJump () {
+	if (isMarioOnGround && !isMarioAbleToJump) {
+		// 着地したら一旦ボタンを離す
+		return false;
+	}
+	if (!isMarioOnGround) {
+		// ジャンプ中はAボタンを押したままで大ジャンプする
+		return true;
+	}
+	return isObstacle(marioEgoRow, marioEgoCol + 1) ||
+			isObstacle(marioEgoRow, marioEgoCol + 2) ||
+			getEnemiesCellValue(marioEgoRow, marioEgoCol + 1) != Sprite.KIND_NONE ||
+			getEnemiesCellValue(marioEgoRow, marioEgoCol + 2) != Sprite.KIND_NONE ||
+			getReceptiveFieldCellValue(marioEgoRow + 1, marioEgoCol + 1) == 0;
 }
 
 public boolean[] getAction()
 {
-    return action;
+	// 穴の手前から走り始めてダッシュジャンプで越える
+	action[Mario.KEY_SPEED] = isTowardHole();
+
+	if (shouldAvoidHall()) {
+		action[Mario.KEY_LEFT] = true;
+		action[Mario.KEY_RIGHT] = false;
+		action[Mario.KEY_JUMP] = false;
+	} else if (shouldJump()) {
+		action[Mario.KEY_LEFT] = false;
+		action[Mario.KEY_RIGHT] = true;
+		action[Mario.KEY_JUMP] = true;
+	} else {
+		action[Mario.KEY_LEFT] = false;
+		action[Mario.KEY_RIGHT] = true;
+		action[Mario.KEY_JUMP] = false;
+	}
+	 return action;
+}
+
+private boolean isTowardHole() {
+	return isOverHall(marioEgoRow, marioEgoCol + 1) ||
+		isOverHall(marioEgoRow, marioEgoCol + 2) ||
+		isOverHall(marioEgoRow, marioEgoCol + 3) ||
+		isOverHall(marioEgoRow, marioEgoCol + 4);
+}
+
+private boolean shouldAvoidHall() {
+	if (isMarioAbleToJump || !isMarioOnGround) {
+		return false;
+	}
+	return !isOverHall(marioEgoRow, marioEgoCol) && isOverHall(marioEgoRow, marioEgoCol + 1);
 }
 }
